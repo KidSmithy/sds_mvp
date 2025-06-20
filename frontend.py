@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
-from openpyxl import load_workbook
+import xlwings as xw
 
 # Configuration
 EXCEL_FILE = "MCC_QUAL_FORECAST_shared.xlsm"
-TARGET_SHEET = "Reference Table1"  # Name of your specific sheet
+TARGET_SHEET = "Reference Table1"
 COLUMN_NAME = "Product"
 COLUMNS = [
     COLUMN_NAME,
@@ -14,42 +13,58 @@ COLUMNS = [
     "Lee Hua's remark",
     "Note: This table is for product reference (based on HTOL Forecast)"
 ]
-# Initialize Excel file with 12 sheets if not exists
-if not os.path.isfile(EXCEL_FILE):
-    # Create empty DataFrames for all sheets
-    st.write("File not found")
-else: 
-    def add_to_sheet(product_name):
-        """Add product to specific sheet in Excel file"""
+
+def add_to_sheet(product_name):
+    """Add product to specific sheet using xlwings to preserve macros"""
+    try:
+        # Check if Excel is installed
+            
+        # Open Excel in the background
+        app = xw.App(visible=False)
+        wb = None
+        
         try:
-            # Load workbook
-            book = load_workbook(EXCEL_FILE)
+            # Open the workbook
+            wb = app.books.open(EXCEL_FILE)
             
-            existing_df = pd.read_excel(EXCEL_FILE, sheet_name=TARGET_SHEET)
-
-            new_row = {
-            COLUMN_NAME: product_name,
-            "Total Positions": 0,
-            "Lee Hua's remark": "",
-            "Note: This table is for product reference (based on HTOL Forecast)": ""
-        }
-        
-            updated_df = pd.concat([existing_df, pd.DataFrame([new_row])], ignore_index=True)
-            
-
-            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                writer.book = book
-                writer.sheets = {ws.title: ws for ws in book.worksheets}
-                updated_df.to_excel(writer, sheet_name=TARGET_SHEET, index=False)
+            # Check if sheet exists
+            if TARGET_SHEET not in [sheet.name for sheet in wb.sheets]:
+                # Create new sheet
+                new_sheet = wb.sheets.add(TARGET_SHEET)
+                # Add headers
+                new_sheet.range('A1').value = COLUMNS
+            else:
+                sheet = wb.sheets[TARGET_SHEET]
                 
+            # Find next empty row
+            sheet = wb.sheets[TARGET_SHEET]
+            last_row = sheet.range('A' + str(sheet.cells.last_cell.row)).end('up').row
+            next_row = last_row + 1 if last_row > 1 else 2
+            
+            # Add new data
+            sheet.range(f'A{next_row}').value = [
+                product_name,  # Product
+                0,             # Total Positions
+                "",            # Lee Hua's remark
+                ""             # Note
+            ]
+            
+            # Save and close
+            wb.save()
             return True
-                
-        
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Excel error: {str(e)}")
             return False
+        finally:
+            if wb:
+                wb.close()
+            app.quit()
+    except Exception as e:
+        st.error(f"Application error: {str(e)}")
+        return False
 
-
+# Streamlit UI
+if os.path.isfile(EXCEL_FILE):
     st.title("Product Inventory Manager")
     st.subheader(f"Add products to '{TARGET_SHEET}' sheet")
 
@@ -61,7 +76,8 @@ else:
             if product_name.strip():
                 if add_to_sheet(product_name.strip()):
                     st.success(f"✅ '{product_name}' added to {TARGET_SHEET}!")
-                    st.session_state.product_input = ""
+                    # st.session_state.product_input = ""
             else:
                 st.warning("⚠️ Please enter a valid product name")
-
+else:
+    st.error(f"Error: File {EXCEL_FILE} not found! Please check the file path.")
