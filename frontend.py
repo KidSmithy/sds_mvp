@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 
 # Configuration
 EXCEL_FILE = "MCC_QUAL_FORECAST_shared.xlsm"
-TARGET_SHEET = "Reference Table 1"  # Name of your specific sheet
+TARGET_SHEET = "Reference Table1"  # Name of your specific sheet
 COLUMN_NAME = "Product"
 COLUMNS = [
     COLUMN_NAME,
